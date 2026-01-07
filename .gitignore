@@ -1,4 +1,5 @@
 data/# Data files
+cache/
 data/
 *.csv
 *.geojson
