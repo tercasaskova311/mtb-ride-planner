@@ -33,23 +33,33 @@ def load_token():
     with open(TOKEN_FILE) as f:
         return json.load(f)
 
+from stravalib import Client
+import time
+import json
+
 def refresh_token_if_needed(token_data):
-    if token_data['expires_at'] < time.time():
-        print("🔄 Token expired, refreshing...")
-        client = Client()
-        resp = client.refresh_access_token(
-            client_id=token_data['client_id'],
-            client_secret=token_data['client_secret'],
-            refresh_token=token_data['refresh_token']
-        )
-        token_data.update({
-            'access_token': resp['access_token'],
-            'refresh_token': resp['refresh_token'],
-            'expires_at': resp['expires_at']
-        })
-        with open(TOKEN_FILE, 'w') as f:
-            json.dump(token_data, f, indent=2)
-        print("✅ Token refreshed")
+    if token_data["expires_at"] > time.time():
+        return token_data  # still valid
+
+    print("🔄 Token expired, refreshing...")
+
+    client = Client()
+    resp = client.refresh_access_token(
+        client_id=token_data["client_id"],
+        client_secret=token_data["client_secret"],
+        refresh_token=token_data["refresh_token"]
+    )
+
+    token_data.update({
+        "access_token": resp["access_token"],
+        "refresh_token": resp["refresh_token"],
+        "expires_at": resp["expires_at"]
+    })
+
+    with open("data/.strava_token.json", "w") as f:
+        json.dump(token_data, f, indent=2)
+
+    print("✅ Token refreshed")
     return token_data
 
 def decode_polyline_to_linestring(polyline_str):
@@ -83,12 +93,14 @@ def save_routes_geojson(gdf, path):
 # ============================================
 # MAIN DOWNLOAD FUNCTION
 # ============================================
-
 def download_strava_routes_incremental():
     print("\n🔹 Loading Strava token...")
+
     token_data = load_token()
     token_data = refresh_token_if_needed(token_data)
-    client = Client(access_token=token_data['access_token'])
+
+    client = Client(access_token=token_data["access_token"])
+
     athlete = client.get_athlete()
     print(f"👤 Athlete: {athlete.firstname} {athlete.lastname}")
 

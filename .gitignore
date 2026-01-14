@@ -8,3 +8,4 @@ data/
 results/
 
 data/.strava_token.json
+strava_api.py

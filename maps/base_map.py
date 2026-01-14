@@ -2,29 +2,24 @@ import folium
 import geopandas as gpd
 from folium.plugins import MarkerCluster
 
-# LOAD DATA
-# ============================================
-# Study area
+#========= LOAD DATA ======================
+
 study_area = gpd.read_file('data/sumava_data/sumava_aoi.geojson')
-# Strava bike rides
-bikerides = gpd.read_file('data/strava/all_strava_routes.geojson')
-
+bikerides = gpd.read_file('data/strava/strava_routes_sumava.geojson')
 study_area.to_file('data/sumava_data/sumava_aoi.gpkg', driver='GPKG')
-bikerides.to_file('data/strava/all_strava_routes.gpkg', driver='GPKG', layer='routes')
+bikerides.to_file('data/strava/strava_routes_sumava.gpkg', driver='GPKG', layer='routes')
 
-# Compute map center from study area bounds
 bounds = study_area.total_bounds  # minx, miny, maxx, maxy
 center = [(bounds[1] + bounds[3]) / 2, (bounds[0] + bounds[2]) / 2]
 
-# CREATE BASE MAP
-# ============================================
+#======= CREATE BASE MAP ================
 m = folium.Map(
     location=center,
     zoom_start=9,
     tiles='OpenStreetMap'
 )
 
-# Study Area polygon
+#======== Study Area polygon ==============
 folium.GeoJson(
     study_area,
     name='Study Area',
@@ -35,17 +30,17 @@ folium.GeoJson(
     }
 ).add_to(m)
 
-# FUNCTION TO GET COORDINATES
-# ============================================
+#======== FUNCTION TO GET COORDINATES =============
 def get_coordinates(geometry):
     if geometry.geom_type == 'Point':
         return [geometry.y, geometry.x]
     return [geometry.centroid.y, geometry.centroid.x]
 
 
-# ADD STRAVA BIKE RIDES
-# ============================================
+#======= ADD STRAVA BIKE RIDES ===============
+
 # Color by difficulty if column exists
+
 def get_line_color(row):
     if 'difficulty' in row:
         if row['difficulty'] == 'Easy':
@@ -75,8 +70,7 @@ for _, ride in bikerides.iterrows():
 
 ride_layer.add_to(m)
 
-#ADD START POINTS
-# ============================================
+#======= ADD START POINTS ===============
 if 'start_lat' in bikerides.columns and 'start_lon' in bikerides.columns:
     start_points = folium.FeatureGroup(name='Ride Start Points', show=False)
     marker_cluster = MarkerCluster().add_to(start_points)
@@ -92,11 +86,9 @@ if 'start_lat' in bikerides.columns and 'start_lon' in bikerides.columns:
 
     start_points.add_to(m)
 
-# ============================================
-# FINALIZE MAP
-# ============================================
+# ========== FINALIZE MAP ==================================
 folium.LayerControl(position='topright', collapsed=False).add_to(m)
 
-# Save HTML
+#HTML
 m.save('maps/bike_map1.html')
 print("✅ Map saved to maps/bike_map1.html")
