@@ -6,4 +6,5 @@ data/
 *.shp
 *.gpkg
 results/
-path/to/large-file
+
+data/.strava_token.json

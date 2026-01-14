@@ -1,21 +1,30 @@
 import folium
 import geopandas as gpd
-from folium import plugins
 from folium.plugins import MarkerCluster
 
-study_area = gpd.read_file('data/raw/00_study_area.gpkg')
-stops = gpd.read_file('data/processed/gtfs_layers.gpkg', layer='stops')
-pois = gpd.read_file('data/raw/03_tourism_pois.gpkg')
-bounds = study_area.total_bounds
-center = [(bounds[1] + bounds[3])/2, (bounds[0] + bounds[2])/2]
+# LOAD DATA
+# ============================================
+# Study area
+study_area = gpd.read_file('data/sumava_data/sumava_aoi.geojson')
+# Strava bike rides
+bikerides = gpd.read_file('data/strava/all_strava_routes.geojson')
 
-#simple map creation
+study_area.to_file('data/sumava_data/sumava_aoi.gpkg', driver='GPKG')
+bikerides.to_file('data/strava/all_strava_routes.gpkg', driver='GPKG', layer='routes')
+
+# Compute map center from study area bounds
+bounds = study_area.total_bounds  # minx, miny, maxx, maxy
+center = [(bounds[1] + bounds[3]) / 2, (bounds[0] + bounds[2]) / 2]
+
+# CREATE BASE MAP
+# ============================================
 m = folium.Map(
-    location=center, #lat, lon
+    location=center,
     zoom_start=9,
     tiles='OpenStreetMap'
 )
 
+# Study Area polygon
 folium.GeoJson(
     study_area,
     name='Study Area',
@@ -26,78 +35,68 @@ folium.GeoJson(
     }
 ).add_to(m)
 
-# Adding POIs to the map ===========================================
+# FUNCTION TO GET COORDINATES
+# ============================================
 def get_coordinates(geometry):
     if geometry.geom_type == 'Point':
-        return[geometry.y, geometry.x]
-    else:
-        centroid = geometry.centroid
-        return [centroid.y, centroid.x]
+        return [geometry.y, geometry.x]
+    return [geometry.centroid.y, geometry.centroid.x]
 
-# Create POI layer
-poi_layer = folium.FeatureGroup(name='POIs', show=True)
 
-# Add markers to feature group
-for idx, poi in pois.iterrows():
-    coords = get_coordinates(poi.geometry)
-    name = poi.get('name', 'Unknown')
-    category = poi.get('category', 'Unknown')
-    popup_content = f"<b>{name}</b><br>Category: {category}"
-    
-    folium.Marker(
-        location=coords,
-        popup=folium.Popup(popup_content, max_width=200),
-        tooltip=name,
-        icon=folium.Icon(color='green', icon='tree', prefix='fa')
-    ).add_to(poi_layer)
+# ADD STRAVA BIKE RIDES
+# ============================================
+# Color by difficulty if column exists
+def get_line_color(row):
+    if 'difficulty' in row:
+        if row['difficulty'] == 'Easy':
+            return 'green'
+        elif row['difficulty'] == 'Moderate':
+            return 'orange'
+        elif row['difficulty'] == 'Hard':
+            return 'red'
+        else:
+            return 'purple'
+    return 'blue'
 
-poi_layer.add_to(m)
+ride_layer = folium.FeatureGroup(name='Strava Rides', show=True)
 
-# Add JavaScript to control visibility based on zoom
-zoom_control_js = """
-<script>
-    var poiLayer = null;
-    
-    // Find the POI layer
-    map.eachLayer(function(layer) {
-        if (layer.options && layer.options.name === 'POIs') {
-            poiLayer = layer;
-        }
-    });
-    
-    // Hide markers at low zoom levels
-    function updatePOIVisibility() {
-        var currentZoom = map.getZoom();
-        var minZoom = 13;  // Show POIs only at zoom 13 or higher
-        
-        if (poiLayer) {
-            if (currentZoom >= minZoom) {
-                map.addLayer(poiLayer);
-            } else {
-                map.removeLayer(poiLayer);
-            }
-        }
-    }
-    
-    // Update visibility on zoom
-    map.on('zoomend', updatePOIVisibility);
-    
-    // Initial check
-    updatePOIVisibility();
-</script>
-"""
+for _, ride in bikerides.iterrows():
+    if ride.geometry:
+        folium.GeoJson(
+            ride.geometry,
+            name=ride.get('name', 'Ride'),
+            style_function=lambda x, color=get_line_color(ride): {
+                'color': color,
+                'weight': 3,
+                'opacity': 0.6
+            },
+            tooltip=ride.get('name', 'Ride')
+        ).add_to(ride_layer)
 
-m.get_root().html.add_child(folium.Element(zoom_control_js))
+ride_layer.add_to(m)
 
-# Adding Transport Stops to the map ===========================================
-transport_stops = folium.FeatureGroup(
-    name='Public Transport Stops',
-    show=True,
-    overlay=True, 
-    control=True
-).add_to(m)
+#ADD START POINTS
+# ============================================
+if 'start_lat' in bikerides.columns and 'start_lon' in bikerides.columns:
+    start_points = folium.FeatureGroup(name='Ride Start Points', show=False)
+    marker_cluster = MarkerCluster().add_to(start_points)
 
-#==============================================================================
-folium.LayerControl(position= 'topright', collapsed=False).add_to(m)
-m.save('maps/map_v1.html')
-print("Map saved to maps/map_v1.html")
+    for _, ride in bikerides.iterrows():
+        if ride.start_lat and ride.start_lon:
+            folium.Marker(
+                location=[ride.start_lat, ride.start_lon],
+                popup=f"{ride.get('name','Ride')}<br>Distance: {ride.get('distance_km',0):.1f} km",
+                tooltip=ride.get('name','Ride'),
+                icon=folium.Icon(color='blue', icon='bicycle', prefix='fa')
+            ).add_to(marker_cluster)
+
+    start_points.add_to(m)
+
+# ============================================
+# FINALIZE MAP
+# ============================================
+folium.LayerControl(position='topright', collapsed=False).add_to(m)
+
+# Save HTML
+m.save('maps/bike_map1.html')
+print("✅ Map saved to maps/bike_map1.html")
