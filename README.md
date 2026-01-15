@@ -1,29 +1,16 @@
 # MTB rides planner in National Park Šumava based on my own data from Strava.
 
-## MTB Ride Planner – Project Structure
 
+## Research question: ##
 
+Where should a mountain bike trail center be placed in Šumava National Park to maximize access to popular trails while minimizing environmental impact?
 
 ## Phase 1 – Data Collection Workflow
 
 ## Phase 2 – Analysis / Filtering Rides
 
-
 ## Phase 3 – Interactive Map (Planner)
 
+## Exported map: ##
+maps/mtb_planner_map.html
 
-Export map:
-- maps/mtb_planner_map.html
- 
-
-
-
-
-
-
-
-
-
-Šumava Bounding Box:
-Min Lon: 13.047121, Min Lat: 48.589165
-Max Lon: 14.177079, Max Lat: 49.289598

@@ -6,12 +6,14 @@ from shapely.geometry import LineString, MultiLineString
 from shapely.ops import unary_union, linemerge
 from pathlib import Path
 
+#built a trail network from overlappnig GPS data - to create segments
+
 class NetworkBuilder:
     @staticmethod
-    def create_network(rides, tolerance=50):        
+    def create_network(rides, tolerance=5):        
 
         rides_proj = rides.to_crs('EPSG:32633')
-        rides_proj['geometry'] = rides_proj.geometry.simplify(tolerance=5) 
+        rides_proj['geometry'] = rides_proj.geometry.simplify(tolerance=tolerance, preserve_topology=True) 
 
         all_geoms = rides_proj.geometry.tolist()
         merged = unary_union(all_geoms)
@@ -32,7 +34,7 @@ class NetworkBuilder:
             segments = []
         
         # Create GeoDataFrame
-        network = gpd.GeoDataFrame(
+        network_proj = gpd.GeoDataFrame(
             {
                 'segment_id': range(len(segments)),
                 'length_m': [seg.length for seg in segments]
@@ -42,19 +44,16 @@ class NetworkBuilder:
         )
         
         # Back to original CRS
-        network['length_km'] = network.geometry.length / 1000
-        network = network.to_crs(rides.crs)
+        network_proj['distance_km'] = network_proj["length_m"] / 1000
+        network = network_proj.to_crs(rides.crs)
 
-        
-        total_length = network['length_km'].sum()
-        print(f"   ✓ Created {len(network)} segments")
-        print(f"   ✓ Total network length: {total_length:.1f} km")
-        
+        print(f"Created {len(network)} segments")
         return network
     
     @staticmethod
-    def map_rides_to_segments(network, rides, buffer_distance=100):
-        
+    def map_rides_to_segments(network, rides, buffer_distance=50):
+    #How far a ride can deviate from a segment and still count
+
         # Project for accurate buffering
         network_proj = network.to_crs('EPSG:32633')
         rides_proj = rides.to_crs('EPSG:32633')
@@ -67,21 +66,22 @@ class NetworkBuilder:
             # Buffer the segment
             seg_buffer = segment.geometry.buffer(buffer_distance)
             
-            possible_matches_idx = list(rides_sindex.intersection(seg_buffer.bounds))
-            possible_matches = rides_proj.iloc[possible_matches_idx]
+            candidate_idx = list(
+                rides_sindex.intersection(seg_buffer.bounds)
+            )
+            candidates = rides_proj.loc[candidate_idx]
 
             # Find intersecting rides
             intersecting = []
-            for ride_idx in possible_matches.index:
-                ride = rides_proj.iloc[ride_idx]
+            for ride_idx, ride in candidates.iterrows():
                 if seg_buffer.intersects(ride.geometry):
-                    ride_info = {
-                        'length_km': rides.loc[ride_idx, 'length_km'],
-                        'route_type': rides.loc[ride_idx, 'route_type'],
-                        'ride_id': ride_idx
-                    }
-                    intersecting.append(ride_info)
-            
+                    intersecting.append(
+                        {
+                            "activity_id": ride_idx,
+                            "distance_km": rides.loc[ride_idx, "distance_km"],
+                        }
+                    )
+
             segment_rides.append(intersecting)
 
             if (seg_idx + 1) % 100 == 0:
@@ -91,8 +91,6 @@ class NetworkBuilder:
         network['rides'] = segment_rides
         network['ride_count'] = [len(r) for r in segment_rides]
         
-        avg_rides = network['ride_count'].mean()
-        max_rides = network['ride_count'].max()
         
         print(f"Mapped rides to {len(network)} segments")
         print(f"Avg rides per segment: {avg_rides:.1f}")

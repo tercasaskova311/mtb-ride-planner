@@ -10,7 +10,6 @@ from bike_layer import BikeLayers
 from analysis_layer import AnalysisLayers
 
 class DataLoader:
-    
     @staticmethod
     def load_data(study_area_path, rides_path):
         
@@ -38,7 +37,7 @@ class DataLoader:
     def calculate_km(rides):
         # Calculate length in km - importnat!
         rides_proj = rides.to_crs("EPSG:32633")
-        rides["length_km"] = rides_proj.geometry.length / 1000
+        rides["distance_km"] = rides_proj.geometry.length / 1000
         
         # Helper func for start/end extraction
         def get_start_point(geom):

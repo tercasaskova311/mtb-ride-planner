@@ -7,18 +7,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import Config
 
-
-class BikeLayers:
-    
+class BikeLayers: 
     @staticmethod
     def add_all_rides(m, rides):
         layer = folium.FeatureGroup(name='Trails', show=True)
 
         # Add entire GeoDataFrame as single GeoJson
-        rides_subset = rides[['geometry', 'length_km', 'route_type']].copy()
+        rides_subset = rides[['geometry', 'distance_km', 'route_type']].copy()
         rides_subset['ride_id'] = rides_subset.index
         
-
         def popup_function(feature):
             props = feature['properties']
             return f"""
@@ -34,19 +31,25 @@ class BikeLayers:
                 'weight': 3,
                 'opacity': 0.6
             },
-            popup=folium.GeoJsonPopup(fields=['ride_id', 'length_km', 'route_type']),
-            tooltip=folium.GeoJsonTooltip(fields=['ride_id'], aliases=['Ride:'])
+            popup=folium.GeoJsonPopup(
+                fields=['ride_id', 'distance_km', 'route_type'],
+                aliases=['Ride:', 'Distance (km):', 'Type:']
+            ),
+            tooltip=folium.GeoJsonTooltip(
+                fields=['ride_id'],
+                aliases=['Ride:']
+            )
         ).add_to(layer)
         
         layer.add_to(m)
-        print(f"Added {len(rides)} rides")
+        print(f"Added {len(rides_subset)} rides")
 
     @staticmethod
     def add_rides_by_length(m, rides):
 
         # length cat - important for later...
         rides['length_category'] = pd.cut(
-            rides['length_km'],
+            rides['distance_km'],
             bins=[0, 10, 25, 50, 100, float('inf')],
             labels=['Short (<10km)', 'Medium (10-25km)', 
                    'Long (25-50km)', 'Very Long (50-100km)', 
@@ -61,38 +64,31 @@ class BikeLayers:
             'Ultra (>100km)': '#8e44ad'
         }
         
-        for category in rides['length_category'].unique():
-            if pd.isna(category):
-                continue
-                
+        for category in rides['length_category'].dropna().unique():
             subset = rides[rides['length_category'] == category]
+
             layer = folium.FeatureGroup(
                 name=f'{category} ({len(subset)})',
-                show=False
-            )
-            
-            layer = folium.FeatureGroup(
-                name=f'📏 {category} ({len(subset)})',
                 show=False
             )
 
             # all rides in category as single GeoJson - in order to speedup
             folium.GeoJson(
-                subset[['geometry', 'activity_id', 'length_km']],
+                subset[['geometry', 'activity_id', 'distance_km']],
                 style_function=lambda x, c=colors_by_length[category]: {
                     'color': c,
                     'weight': 3,
                     'opacity': 0.7
                 },
                 tooltip=folium.GeoJsonTooltip(
-                    fields=['activity_id', 'length_km'],
+                    fields=['activity_id', 'distance_km'],
                     aliases=['Ride:', 'Distance (km):']
                 )
             ).add_to(layer)
             
             layer.add_to(m)
         
-        print(f"   ✓ Added {len(rides['length_category'].unique())} length categories")
+        print("Added length-based layers")
     
     @staticmethod
     def add_heatmap(m, rides):
@@ -100,21 +96,25 @@ class BikeLayers:
         total_rides = len(rides)
         
         for idx, (_, ride) in enumerate(rides.iterrows()):
-            if ride.geometry:
-                length = ride.geometry.length
-                for i in range(Config.HEATMAP_POINTS_PER_ROUTE):
-                    try:
-                        point = ride.geometry.interpolate(i / Config.HEATMAP_POINTS_PER_ROUTE * length)
-                        heat_data.append([point.y, point.x])
-                    except:
-                        continue
+            geom = ride.geometry
+            if geom is None:
+                continue
+
+            length = geom.length
+
+            for i in range(Config.HEATMAP_POINTS_PER_ROUTE):
+                try:
+                    point = geom.interpolate(i / Config.HEATMAP_POINTS_PER_ROUTE * length)
+                    heat_data.append([point.y, point.x])
+                except Exception:
+                    continue
             
             # Progress indicator
             if (idx + 1) % 100 == 0:
                 print(f"   Processed {idx + 1}/{total_rides} rides...")
         
         if heat_data:
-            layer = folium.FeatureGroup(name='🔥 Density Heatmap', show=False)
+            layer = folium.FeatureGroup(name='Ride Density Heatmap', show=False)
             HeatMap(
                 heat_data,
                 min_opacity=0.3,
@@ -134,11 +134,14 @@ class BikeLayers:
         
         for idx, (_, ride) in enumerate(valid_starts.iterrows()):
             coords = ride['start_point']
+
             folium.Marker(
                 location=[coords[1], coords[0]],
-                popup=f"<b>Ride {ride.name}</b><br>"
-                      f"Distance: {ride['length_km']:.1f} km<br>"
-                      f"Type: {ride['route_type']}",
+                popup=(
+                    f"<b>Ride {ride.name}</b><br>"
+                    f"Distance: {ride['distance_km']:.1f} km<br>"
+                    f"Type: {ride['route_type']}",
+                ),
                 icon=folium.Icon(color='blue', icon='bicycle', prefix='fa')
             ).add_to(cluster)
             
@@ -147,5 +150,5 @@ class BikeLayers:
                 print(f"   Added {idx + 1}/{len(valid_starts)} markers...")
         
         layer.add_to(m)
-        print(f"   ✓ Added {len(valid_starts)} start points")
+        print(f"Added {len(valid_starts)} start points")
 
