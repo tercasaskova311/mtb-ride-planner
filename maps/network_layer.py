@@ -92,10 +92,7 @@ class NetworkBuilder:
         network['ride_count'] = [len(r) for r in segment_rides]
         
         
-        print(f"Mapped rides to {len(network)} segments")
-        print(f"Avg rides per segment: {avg_rides:.1f}")
-        print(f"Most popular segment: {max_rides} rides")
-        
+        print(f"Mapped rides to {len(network)} segments")        
         return network
     
     @staticmethod

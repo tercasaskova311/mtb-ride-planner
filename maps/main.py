@@ -34,7 +34,6 @@ def main():
         Config.STUDY_AREA,
         Config.STRAVA_RIDES
     )
-    
      # === STEP 2: CLEANING ===
     rides = DataLoader.clean_ride_names(rides)
     rides = DataLoader.calculate_km(rides)
@@ -67,9 +66,10 @@ def main():
    
     BikeLayers.add_all_rides(m, rides)
     BikeLayers.add_rides_by_length(m, rides)
-    
-    AnalysisLayers.add_route_clusters(m, rides, Config.CLUSTER_DISTANCE)
-    AnalysisLayers.add_heatmap(m, rides)
+    BikeLayers.add_clickable_rides(m, rides)
+
+    HeatMapLayer.add_route_clusters(m, rides, Config.CLUSTER_DISTANCE)
+    HeatMapLayer.add_heatmap(m, rides)
         
     # Add layer control
     folium.LayerControl(position='topright', collapsed=False).add_to(m)

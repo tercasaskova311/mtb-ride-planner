@@ -184,10 +184,8 @@ class BaseLayers:
                     font-family: Arial;">
             <h4 style="margin: 0 0 10px 0; color: #2c3e50;">🚴 MTB Planner</h4>
             <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6;">
-                <li><b>Click trail segments</b> to see all routes using it</li>
-                <li><b>Colors:</b> Blue→Orange→Red = increasing traffic</li>
-                <li><b>Toggle layers</b> to explore rides by type</li>
-                <li><b>Switch base maps</b> for satellite/topo views</li>
+                <li><b>Click on  a given trail</b> to see all routes passing through it</li>
+                <li><b>Colors:</b> Blue→Orange→Red = increasing popularity</li>
             </ul>
         </div>
         """

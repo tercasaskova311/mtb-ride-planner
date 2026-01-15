@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import Config
+from folium import FeatureGroup
+
 
 class BikeLayers: 
     @staticmethod
@@ -31,13 +33,13 @@ class BikeLayers:
                 'weight': 3,
                 'opacity': 0.6
             },
+              tooltip=folium.GeoJsonTooltip(
+                fields=['ride_id'],
+                aliases=['Ride:']
+            ),
             popup=folium.GeoJsonPopup(
                 fields=['ride_id', 'distance_km', 'route_type'],
                 aliases=['Ride:', 'Distance (km):', 'Type:']
-            ),
-            tooltip=folium.GeoJsonTooltip(
-                fields=['ride_id'],
-                aliases=['Ride:']
             )
         ).add_to(layer)
         
@@ -45,23 +47,43 @@ class BikeLayers:
         print(f"Added {len(rides_subset)} rides")
 
     @staticmethod
+    def add_clickable_rides(m, rides):
+        # Make a layer for ride start points
+        layer = FeatureGroup(name="Ride Junctions / Points", show=True)
+        
+        # Here we use start points, but you could also use intersections
+        for idx, row in rides.iterrows():
+            if row['start_point'] is None:
+                continue
+            lat, lon = row['start_point'][1], row['start_point'][0]
+            
+            # Popup HTML: list all rides that start here (example: just one ride per point here)
+            html = f"<b>Rides from this point:</b><br>"
+            html += f"<a href='#' onclick='alert(\"Showing ride {row['ride_id']}\")'>Ride {row['ride_id']} ({row['distance_km']:.1f} km)</a><br>"
+            
+            folium.Marker(
+                location=[lat, lon],
+                popup=folium.Popup(html, max_width=300),
+                icon=folium.Icon(color='green', icon='bicycle', prefix='fa')
+            ).add_to(layer)
+        
+        layer.add_to(m)
+
+    @staticmethod
     def add_rides_by_length(m, rides):
 
         # length cat - important for later...
         rides['length_category'] = pd.cut(
             rides['distance_km'],
-            bins=[0, 10, 25, 50, 100, float('inf')],
-            labels=['Short (<10km)', 'Medium (10-25km)', 
-                   'Long (25-50km)', 'Very Long (50-100km)', 
-                   'Ultra (>100km)']
+            bins=[0, 25, 50, float('inf')],
+            labels=['Short ( to 25 km)', 'Medium (25-50km)', 
+                    'Long (50 + km)']
         )
         
         colors_by_length = {
-            'Short (<10km)': '#27ae60',
-            'Medium (10-25km)': '#3498db',
-            'Long (25-50km)': '#f39c12',
-            'Very Long (50-100km)': '#e74c3c',
-            'Ultra (>100km)': '#8e44ad'
+            'Short (to 25 km)': '#27ae60',
+            'Medium (25-50km)': '#f39c12',
+            'Very Long (50 +)': '#e74c3c'
         }
         
         for category in rides['length_category'].dropna().unique():

@@ -8,7 +8,7 @@ from sklearn.cluster import DBSCAN
 import numpy as np
 from shapely.geometry import Point
 
-class AnalysisLayers:
+class HeatMapLayer:
     @staticmethod
     def add_heatmap(m, rides):
         heat_data = []
