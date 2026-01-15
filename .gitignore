@@ -9,3 +9,5 @@ results/
 
 config/.strava_token.json
 preprocessing/strava_api.py
+__pycache__/
+maps/__pycache__

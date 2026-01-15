@@ -6,6 +6,15 @@ import geopandas as gpd
 from shapely.geometry import LineString, MultiLineString, Point
 from stravalib import Client
 import polyline
+import os
+
+STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID")
+STRAVA_CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET")
+CODE = os.getenv("CODE")
+
+if not STRAVA_CLIENT_ID or not STRAVA_CLIENT_SECRET or not CODE:
+    raise RuntimeError("❌ STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET not set")
+
 
 # ============================================
 # CONFIG
@@ -33,10 +42,6 @@ def load_token():
     with open(TOKEN_FILE) as f:
         return json.load(f)
 
-from stravalib import Client
-import time
-import json
-
 def refresh_token_if_needed(token_data):
     if token_data["expires_at"] > time.time():
         return token_data  # still valid
@@ -44,23 +49,17 @@ def refresh_token_if_needed(token_data):
     print("🔄 Token expired, refreshing...")
 
     client = Client()
-    resp = client.refresh_access_token(
-        client_id=token_data["client_id"],
-        client_secret=token_data["client_secret"],
-        refresh_token=token_data["refresh_token"]
+    new_token = client.refresh_access_token(
+        client_id=STRAVA_CLIENT_ID,
+        client_secret=STRAVA_CLIENT_SECRET,
+        code=CODE
     )
 
-    token_data.update({
-        "access_token": resp["access_token"],
-        "refresh_token": resp["refresh_token"],
-        "expires_at": resp["expires_at"]
-    })
-
-    with open("data/.strava_token.json", "w") as f:
-        json.dump(token_data, f, indent=2)
+    with open(TOKEN_FILE, "w") as f:
+        json.dump(new_token, f, indent=2)
 
     print("✅ Token refreshed")
-    return token_data
+    return new_token
 
 def decode_polyline_to_linestring(polyline_str):
     if not polyline_str:

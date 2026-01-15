@@ -64,3 +64,10 @@ class Config:
         """Create output directories if they don't exist"""
         cls.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         cls.STRAVA_DIR.mkdir(parents=True, exist_ok=True)
+
+    
+    # Add to Config class
+    SIMPLIFY_GEOMETRIES = True  # Set to False for max detail
+    MAX_RIDES_IN_POPUP = 10     # Limit popup content
+    SAMPLE_HEATMAP = True       # Use subset for heatmap
+    HEATMAP_SAMPLE_SIZE = 0.5   # Use 50% of rides

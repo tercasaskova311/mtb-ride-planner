@@ -1,26 +1,23 @@
 import folium
-from folium.plugins import MarkerCluster, HeatMap, Fullscreen
+from folium.plugins import MarkerCluster, HeatMap, Fullscreen, MiniMap
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import Config
 
 class BaseLayers:
-    
     @staticmethod
     def create_base_map(center, zoom=11):
-
         m = folium.Map(
             location=center,
             zoom_start=zoom,
-            tiles=None,  # We'll add custom tiles
+            tiles=None,  
             control_scale=True,
             zoom_control=True,
             max_zoom=Config.MAX_ZOOM,
             min_zoom=Config.MIN_ZOOM
         )
         
-        # OpenStreetMap (default)
         folium.TileLayer(
             'OpenStreetMap',
             name='Street Map',
@@ -28,7 +25,6 @@ class BaseLayers:
             control=True
         ).add_to(m)
         
-        # Satellite imagery
         folium.TileLayer(
             tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
             attr='Esri',
@@ -37,7 +33,6 @@ class BaseLayers:
             control=True
         ).add_to(m)
         
-        # Topographic
         folium.TileLayer(
             'OpenTopoMap',
             name='Topographic',
@@ -45,15 +40,14 @@ class BaseLayers:
             control=True
         ).add_to(m)
         
-        # Add minimap and fullscreen
         MiniMap(toggle_display=True).add_to(m)
         Fullscreen().add_to(m)
         
         return m
     
     @staticmethod
+    #adding AIO - NP + CHKO Šumava - lines as a boundary 
     def add_study_area(m, study_area):
-        """Add study area boundary"""
         folium.GeoJson(
             study_area,
             name='Study Area',
@@ -68,17 +62,17 @@ class BaseLayers:
     
     @staticmethod
     def add_interactive_network(m, network):
-        
         layer = folium.FeatureGroup(
-            name='🕸️ Trail Network (Click for routes!)',
+            name='Trail Network (Click for routes!)',
             show=True
         )
         
         thresholds = Config.TRAFFIC_THRESHOLDS
+        network_geojson = network.__geo_interface__
         
-        for idx, segment in network.iterrows():
-            ride_count = segment['ride_count']
-            rides_info = segment['rides']
+        #style and popup functions
+        def style_function(feature):
+            ride_count = feature['properties']['ride_count']
             
             # Color by popularity
             if ride_count == 0:
@@ -93,8 +87,35 @@ class BaseLayers:
             else:
                 color = Config.COLORS['high_traffic']
                 weight = 5
+            return {
+                'color': color,
+                'weight': weight,
+                'opacity': 0.8
+            }
+
+            def highlight_function(feature):
+                return {
+                    'color': Config.COLORS['highlight'],
+                    'weight': 6,
+                    'opacity': 1.0
+                }
+        
+            #entire network as single GeoJson - in order to speedup...
+            for idx, segment in network.iterrows():
+                ride_count = segment['ride_count']
+                rides_info = segment['rides']
+                
+                # Determine color
+                if ride_count == 0:
+                    color = Config.COLORS['no_traffic']
+                elif ride_count <= thresholds['low']:
+                    color = Config.COLORS['low_traffic']
+                elif ride_count <= thresholds['medium']:
+                    color = Config.COLORS['medium_traffic']
+                else:
+                    color = Config.COLORS['high_traffic']
             
-            # Create popup
+            #popup
             popup_html = f"""
             <div style="font-family: Arial; min-width: 300px; max-height: 400px; overflow-y: auto;">
                 <h4 style="margin: 0 0 10px 0; color: #2c3e50;">
@@ -113,12 +134,16 @@ class BaseLayers:
                             border-radius: 4px; border-left: 3px solid {color};">
                     <b>{i}. {ride_info['name']}</b><br>
                     <span style="color: #7f8c8d;">
-                        📏 {ride_info['length_km']:.1f} km | 🔄 {ride_info['route_type']}
+                         {ride_info['length_km']:.1f} km | 🔄 {ride_info['route_type']}
                     </span>
                 </div>
                 """
+            if len(rides_info) > 10:
+                popup_html += f"<p style='color: #7f8c8d; font-size: 11px;'>...and {len(rides_info) - 10} more routes</p>"
             
             popup_html += "</div></div>"
+            geom_dict = segment.geometry.__geo_interface__
+
             
             # Add to map
             folium.GeoJson(
@@ -136,13 +161,16 @@ class BaseLayers:
                 popup=folium.Popup(popup_html, max_width=350),
                 tooltip=f"🚴 {ride_count} routes (click for details)"
             ).add_to(layer)
-        
+            
+            # Progress
+            if (idx + 1) % 50 == 0:
+                print(f"   Added {idx + 1}/{len(network)} segments...")
+
         layer.add_to(m)
         print(f"   ✓ Added {len(network)} interactive segments")
     
     @staticmethod
     def add_instructions(m):
-        """Add usage instructions overlay"""
         instructions = """
         <div style="position: fixed; 
                     top: 10px; 
@@ -166,9 +194,8 @@ class BaseLayers:
         m.get_root().html.add_child(folium.Element(instructions))
 
     def save_map(m, output_path):
-            """Save map to HTML file"""
-            output_path = Path(output_path)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            m.save(str(output_path))
-            print(f" Map saved to: {output_path}")
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        m.save(str(output_path))
+        print(f" Map saved to: {output_path}")
    

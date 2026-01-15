@@ -1,30 +1,27 @@
-"""
-Network Builder Module
-Create unified trail network from overlapping rides
-"""
+#Create unified trail network from overlapping rides
+#originally input are strava rides - therefore they overlaps a lot
 
 import geopandas as gpd
 from shapely.geometry import LineString, MultiLineString
 from shapely.ops import unary_union, linemerge
 from pathlib import Path
 
-
 class NetworkBuilder:
-    
     @staticmethod
     def create_network(rides, tolerance=50):        
-        # Project to meters for accurate processing
+
         rides_proj = rides.to_crs('EPSG:32633')
-        # Merge all geometries
+        rides_proj['geometry'] = rides_proj.geometry.simplify(tolerance=5) 
+
         all_geoms = rides_proj.geometry.tolist()
         merged = unary_union(all_geoms)
         
         # Try to merge connected line segments
         try:
             merged = linemerge(merged)
-            print("   ✓ Merged connected segments")
+            print("Merged connected segments")
         except:
-            print("   ⚠️  Could not merge all segments")
+            print("Could not merge all segments")
         
         # Convert to list of segments
         if isinstance(merged, LineString):
@@ -61,6 +58,8 @@ class NetworkBuilder:
         # Project for accurate buffering
         network_proj = network.to_crs('EPSG:32633')
         rides_proj = rides.to_crs('EPSG:32633')
+
+        rides_sindex = rides_proj.sindex
         
         segment_rides = []
         
@@ -68,9 +67,13 @@ class NetworkBuilder:
             # Buffer the segment
             seg_buffer = segment.geometry.buffer(buffer_distance)
             
+            possible_matches_idx = list(rides_sindex.intersection(seg_buffer.bounds))
+            possible_matches = rides_proj.iloc[possible_matches_idx]
+
             # Find intersecting rides
             intersecting = []
-            for ride_idx, ride in rides_proj.iterrows():
+            for ride_idx in possible_matches.index:
+                ride = rides_proj.iloc[ride_idx]
                 if seg_buffer.intersects(ride.geometry):
                     ride_info = {
                         'length_km': rides.loc[ride_idx, 'length_km'],
@@ -80,16 +83,20 @@ class NetworkBuilder:
                     intersecting.append(ride_info)
             
             segment_rides.append(intersecting)
-        
+
+            if (seg_idx + 1) % 100 == 0:
+                print(f"   Processed {seg_idx + 1}/{len(network)} segments...")
+
+
         network['rides'] = segment_rides
         network['ride_count'] = [len(r) for r in segment_rides]
         
         avg_rides = network['ride_count'].mean()
         max_rides = network['ride_count'].max()
         
-        print(f"   ✓ Mapped rides to {len(network)} segments")
-        print(f"   📊 Avg rides per segment: {avg_rides:.1f}")
-        print(f"   📊 Most popular segment: {max_rides} rides")
+        print(f"Mapped rides to {len(network)} segments")
+        print(f"Avg rides per segment: {avg_rides:.1f}")
+        print(f"Most popular segment: {max_rides} rides")
         
         return network
     
@@ -98,8 +105,8 @@ class NetworkBuilder:
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Save without the 'rides' list column (not serializable)
+        # Save without the 'rides' list column (not serializable)!!
         network_save = network.drop(columns=['rides'], errors='ignore')
         network_save.to_file(output_path, driver='GPKG')
         
-        print(f"💾 Saved network to: {output_path}")
+        print(f"Saved network to: {output_path}")

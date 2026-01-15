@@ -1,3 +1,4 @@
+#getting insights from uploaded rides - mainly heatmap - which is later used to answear the research question
 import folium
 from folium.plugins import MarkerCluster, HeatMap, MiniMap, Fullscreen
 import geopandas as gpd
@@ -5,11 +6,9 @@ import pandas as pd
 from pathlib import Path
 
 class AnalysisLayers:
-    """Create analysis and heatmap layers"""
     
     @staticmethod
     def add_heatmap(m, rides):
-        """Add density heatmap"""
         heat_data = []
         
         for _, ride in rides.iterrows():
@@ -24,7 +23,7 @@ class AnalysisLayers:
                         continue
         
         if heat_data:
-            layer = folium.FeatureGroup(name='🔥 Density Heatmap', show=False)
+            layer = folium.FeatureGroup(name='Density Heatmap', show=False)
             HeatMap(
                 heat_data,
                 min_opacity=0.3,
@@ -33,14 +32,13 @@ class AnalysisLayers:
                 gradient={0.0: 'blue', 0.5: 'lime', 0.7: 'yellow', 1.0: 'red'}
             ).add_to(layer)
             layer.add_to(m)
-            print(f"   ✓ Added heatmap layer")
+            print(f"add heatmap layer")
     
     @staticmethod
     def add_route_clusters(m, rides, distance_threshold=2000):
-        """Group and visualize route clusters"""
         rides_proj = rides.to_crs('EPSG:32633')
         
-        # Simple clustering
+        #clustering
         clusters = {}
         cluster_id = 0
         assigned = set()
@@ -78,7 +76,7 @@ class AnalysisLayers:
             
             subset = rides[rides['cluster'] == cluster_num]
             layer = folium.FeatureGroup(
-                name=f'📍 Area {chr(65 + int(cluster_num))} ({len(subset)} rides)',
+                name=f'Area {chr(65 + int(cluster_num))} ({len(subset)} rides)',
                 show=False
             )
             
@@ -97,4 +95,4 @@ class AnalysisLayers:
             
             layer.add_to(m)
         
-        print(f"   ✓ Added {cluster_id} route clusters")
+        print(f"Added {cluster_id} route clusters")

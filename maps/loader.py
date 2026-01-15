@@ -26,26 +26,21 @@ class DataLoader:
 
     @staticmethod
     def clean_ride_names(rides):
-        """
-        Remove ride name / description column entirely
-        """
-        print("🧹 Removing ride names column...")
-
+        #originally there has been custom describtion from strava...
         if 'name' in rides.columns:
             rides = rides.drop(columns=['name'])
-            print("   ✓ 'name' column removed")
+            print("'name' column removed")
         else:
-            print("   ⚠️  No 'name' column found")
-
+            print("No 'name' column found")
         return rides
     
     @staticmethod
     def calculate_km(rides):
-        # Calculate length in km
+        # Calculate length in km - importnat!
         rides_proj = rides.to_crs("EPSG:32633")
         rides["length_km"] = rides_proj.geometry.length / 1000
         
-        # Helper functions for start/end extraction
+        # Helper func for start/end extraction
         def get_start_point(geom):
             from shapely.geometry import LineString, MultiLineString
             if geom is None or geom.is_empty:
@@ -101,6 +96,6 @@ class DataLoader:
         
         rides['route_type'] = rides.apply(classify_route, axis=1)
         
-        print(f"   ✓ Enriched {len(rides)} rides")
+        print(f" Enriched {len(rides)} rides")
         return rides
 

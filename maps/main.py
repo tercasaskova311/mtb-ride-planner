@@ -1,7 +1,4 @@
-"""
-MTB Planner - Main Application
-Modular architecture for trail network visualization
-"""
+#main.py from mtb planner - Šumava - rides based by strava data 
 from loader import DataLoader
 from network_layer import NetworkBuilder
 from base_map import BaseLayers
@@ -13,42 +10,26 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import Config
 
-
-def print_header():
-    """Print application header"""
-    print("\n" + "="*70)
-    print("🚴 MTB PLANNER - Interactive Trail Network")
-    print("="*70 + "\n")
-
-
 def print_summary(study_area, rides, network):
-    """Print final summary statistics"""
-    print("\n" + "="*70)
-    print("📊 SUMMARY")
-    print("="*70)
-    print(f"\n📍 Data:")
+    print("sumary")
     print(f"   Total Rides: {len(rides)}")
     print(f"   Total Distance: {rides['length_km'].sum():.1f} km")
     print(f"   Average Ride: {rides['length_km'].mean():.1f} km")
     print(f"   Longest Ride: {rides['length_km'].max():.1f} km")
     
-    print(f"\n🕸️  Network:")
+    print(f"\n  Network:")
     print(f"   Segments: {len(network)}")
     print(f"   Total Length: {network['length_km'].sum():.1f} km")
     print(f"   Most Popular: {network['ride_count'].max()} rides on one segment")
     
-    print(f"\n🔄 Route Types:")
+    print(f"\n Route Types:")
     for route_type, count in rides['route_type'].value_counts().items():
         print(f"   {route_type}: {count}")
     
-    print(f"\n✅ Output saved to: {Config.OUTPUT_MAP}")
-    print("\n💡 Tip: Click on trail segments to see which routes use them!")
-    print("="*70 + "\n")
+    print(f"\n Output saved to: {Config.OUTPUT_MAP}")
 
 
-def main():
-    
-    print_header()    
+def main():    
     Config.ensure_directories()
     
     study_area, rides = DataLoader.load_data(
@@ -56,11 +37,11 @@ def main():
         Config.STRAVA_RIDES
     )
     
-     # === STEP 2: CLEAN & ENRICH DATA ===
+     # === STEP 2: CLEANING ===
     rides = DataLoader.clean_ride_names(rides)
     rides = DataLoader.calculate_km(rides)
 
-    # === STEP 3: BUILD TRAIL NETWORK ===
+    # === STEP 3: BUILDING NETWORK ===
     network = NetworkBuilder.create_network(
         rides,
         tolerance=Config.SNAP_TOLERANCE
@@ -79,7 +60,7 @@ def main():
     center = [(bounds[1] + bounds[3]) / 2, (bounds[0] + bounds[2]) / 2]
     
     # Create base map
-    m = MapCreator.create_base_map(center, Config.DEFAULT_ZOOM)
+    m = BaseLayers.create_base_map(center, Config.DEFAULT_ZOOM)
     
     # Add layers
     BaseLayers.add_study_area(m, study_area)
