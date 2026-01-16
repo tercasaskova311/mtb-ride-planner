@@ -28,10 +28,10 @@ class Config:
     # Colors
     COLORS = {
         # Network traffic levels
-        'no_traffic': '#8d6e63',    # brown
-        'low_traffic': '#3498db',    # Blue
-        'medium_traffic': '#f39c12', # Orange
-        'high_traffic': '#e74c3c',   # Red
+        'no_traffic': '#FFEB99',    # brown
+        'low_traffic': '#f39c12',    # Blue
+        'medium_traffic': '#FF9966', # Orange 
+        'high_traffic': '#CC0000',   # Red
         
         # Route types
         'loop': '#2ecc71',           # Green

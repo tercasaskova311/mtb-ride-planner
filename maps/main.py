@@ -94,6 +94,7 @@ def main():
     BaseLayers.add_study_area(m, study_area)   
     BikeLayers.add_rides_by_length(m, rides)
 
+
     HeatMapLayer.add_route_clusters(m, rides, Config.CLUSTER_DISTANCE)
     HeatMapLayer.add_heatmap(m, rides)
     
@@ -104,10 +105,8 @@ def main():
 
 
     candidates = gpd.read_file(candidates_path)
-    BaseLayers.add_analysis_summary(m, network, candidates)  
-
-    BaseLayers.add_instructions(m) 
-    
+    BaseLayers.add_description(m, network, candidates) 
+    BikeLayers.add_trail_network(m, network)
         
     # Add layer control
     folium.LayerControl(position='topright', collapsed=False).add_to(m)
