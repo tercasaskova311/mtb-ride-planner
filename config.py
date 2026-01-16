@@ -28,7 +28,7 @@ class Config:
     # Colors
     COLORS = {
         # Network traffic levels
-        'no_traffic': '#95a5a6',    # Gray
+        'no_traffic': '#8d6e63',    # brown
         'low_traffic': '#3498db',    # Blue
         'medium_traffic': '#f39c12', # Orange
         'high_traffic': '#e74c3c',   # Red

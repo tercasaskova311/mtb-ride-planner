@@ -3,6 +3,7 @@ from network_layer import NetworkBuilder
 from base_map import BaseLayers
 from bike_layer import BikeLayers
 from heatmap import HeatMapLayer
+from place import SuitabilityAnalyzer
 import sys
 from pathlib import Path
 import folium
@@ -51,21 +52,54 @@ def add_candidate_locations(m, candidates_path, protected_zones_path=None):
         
         folium.GeoJson(
             zones,
-            name='🌲 Protected Zones (A & B)',
+            name='🌲 Protected Zones (A)',
             style_function=lambda x: {
-                'fillColor': '#d63031',
-                'color': '#c0392b',
-                'weight': 2,
-                'fillOpacity': 0.2,
-                'dashArray': '5, 5'
+                'fillColor': '#2e7d32' if x['properties'].get('ZONA') == 'A' else '#a5d6a7',
+                'color': '#1b5e20', #dark green
+                'weight': 1.2,
+                'dashArray': '1,6',
+                'fillOpacity': 0.4 if x['properties'].get('ZONA') == 'A' else 0.25
             },
-            tooltip='Ecologically Sensitive Zone - Avoid'
         ).add_to(m)
+
+    legend_html = """
+        <div style="
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 9999;
+            background-color: white;
+            padding: 10px 12px;
+            border-radius: 6px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.2);
+            font-size: 13px;
+        ">
+        <b>Protected Zones</b><br>
+        <hr style="margin: 6px 0;">
+        <span style="display:inline-block;
+                    width:12px;
+                    height:12px;
+                    background:#2e7d32;
+                    opacity:0.45;
+                    margin-right:6px;"></span>
+        Zone A – Strict protection<br>
+
+        <span style="display:inline-block;
+                    width:12px;
+                    height:12px;
+                    background:#a5d6a7;
+                    opacity:0.4;
+                    margin-right:6px;"></span>
+        Other protected zones
+        </div>
+        """
+
+    m.get_root().html.add_child(folium.Element(legend_html))
     
     candidates = gpd.read_file(candidates_path)
     
     # Create layer
-    layer = folium.FeatureGroup(name='🎯 Candidate Trail Centers', show=True)
+    layer = folium.FeatureGroup(name='Candidate Trail Centers', show=True)
     
     # Color scale for ranks
     rank_colors = {
@@ -79,6 +113,10 @@ def add_candidate_locations(m, candidates_path, protected_zones_path=None):
     for idx, candidate in candidates.iterrows():
         rank = int(candidate['rank'])
         color = rank_colors.get(rank, '#95a5a6')
+
+        trail_count = int(candidate.get('trail_count', 0))
+        trail_length = candidate.get('trail_length_km', 0.0)
+        total_rides = int(candidate.get('total_rides', 0))
         
         # Create popup
         popup_html = f"""
@@ -93,14 +131,13 @@ def add_candidate_locations(m, candidates_path, protected_zones_path=None):
             <hr style="margin: 10px 0;">
             <p style="font-size: 12px; margin: 5px 0;">
                 <b>Trail Access (5km):</b><br>
-                • {int(candidate['trail_segments_5km'])} segments<br>
-                • {candidate['trail_length_5km']:.1f} km trails<br>
-                • {int(candidate['total_traffic_5km'])} recorded rides<br>
-                • {int(candidate['ride_starts_5km'])} start points nearby
+                • {int(candidate['trail_count'])} segments<br>
+                • {int(candidate['total_rides'])} recorded rides<br>
+                • {int(candidate['ride_sttotal_rides'])} start points nearby
             </p>
         </div>
         """
-        
+
         # Add marker
         folium.CircleMarker(
             location=[candidate.geometry.y, candidate.geometry.x],
@@ -154,6 +191,23 @@ def main():
 
     NetworkBuilder.save_network(network, Config.TRAIL_NETWORK)
 
+    protected_zones_file = Path('data/sumava_zones_2.geojson')
+    protected_zones = gpd.read_file(protected_zones_file)
+
+    results = SuitabilityAnalyzer.analyze(
+        network=network,
+        rides=rides,
+        study_area=study_area,
+        protected_zones=protected_zones
+    )
+    
+    # Print and save results
+    if results is not None:
+        SuitabilityAnalyzer.print_results(results, top_n=5)
+        
+        candidates_file = Config.OUTPUT_DIR / 'candidate_locations.gpkg'
+        SuitabilityAnalyzer.save_results(results, candidates_file)
+    
     # Calculate map center
     bounds = study_area.total_bounds
     center = [(bounds[1] + bounds[3]) / 2, (bounds[0] + bounds[2]) / 2]
@@ -164,24 +218,22 @@ def main():
     # Add layers
     BaseLayers.add_study_area(m, study_area)   
    
-    BikeLayers.add_all_rides(m, rides)
+    #BikeLayers.add_all_rides(m, rides)
     BikeLayers.add_rides_by_length(m, rides)
 
     HeatMapLayer.add_route_clusters(m, rides, Config.CLUSTER_DISTANCE)
     HeatMapLayer.add_heatmap(m, rides)
 
+
     candidates_file = Config.OUTPUT_DIR / 'candidate_locations.gpkg'
-    protected_zones_file = Path('data/sumava_zones_2.geojson')
-    
-    # Check if protected zones exist
     zones_path = protected_zones_file if protected_zones_file.exists() else None
     add_candidate_locations(m, candidates_file, zones_path)
 
     BaseLayers.add_instructions(m) 
-    #BaseLayers.add_trail_network_analysis(m, network)
+    BaseLayers.add_trail_network_analysis(m, network)
     
     BikeLayers.add_clickable_rides(m, rides)  # Trails clickable but hidden from control
-    BikeLayers.add_ride_junctions(m, rides)   # Junction points visible in control
+    #BikeLayers.add_ride_junctions(m, rides)   # Junction points visible in control
         
     # Add layer control
     folium.LayerControl(position='topright', collapsed=False).add_to(m)

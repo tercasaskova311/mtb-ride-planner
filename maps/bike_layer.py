@@ -66,12 +66,9 @@ class BikeLayers:
                 
                 # Choose color based on route type
                 color_map = {
-                    'Ride': '#3388ff',
-                    'Hike': '#ff7800', 
-                    'Run': '#e74c3c',
-                    'VirtualRide': '#9b59b6'
+                    'Ride': '#5c4033'
                 }
-                color = color_map.get(route_type, '#95a5a6')
+                color = color_map.get(route_type, '#5c4033')
                 
                 # Add ride geometry - control=False prevents it from showing in layer control!
                 folium.GeoJson(
@@ -79,7 +76,7 @@ class BikeLayers:
                     style_function=lambda x, c=color: {
                         'color': c,
                         'weight': 3,
-                        'opacity': 0.7
+                        'opacity': 1
                     },
                     highlight_function=lambda x: {
                         'weight': 5,
@@ -132,14 +129,14 @@ class BikeLayers:
         rides['length_category'] = pd.cut(
             rides['distance_km'],
             bins=[0, 25, 50, float('inf')],
-            labels=['Short (to 25 km)', 'Medium (25-50km)', 
-                    'Long (50 +)']
+            labels=['Short (0-25 km)', 'Medium (25-50km)', 
+                    'Long (50+)']
         )
         
         colors_by_length = {
-            'Short (to 25 km)': '#27ae60',
-            'Medium (25-50km)': '#f39c12',
-            'Very Long (50 +)': '#e74c3c'
+            'Short (0-25 km)': '#9b59b6',    # light purple
+            'Medium (25–50 km)': '#8e44ad',  # strong purple
+            'Very Long (50+)': '#5e3370'     # dark violet
         }
         
         for category in rides['length_category'].dropna().unique():

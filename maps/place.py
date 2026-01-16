@@ -9,35 +9,30 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import Config
 
+
 class SuitabilityAnalyzer:
+    """Static class for analyzing trail center suitability"""
     
-    def __init__(self, network, rides, study_area, protected_zones=None):
-        self.network = network
-        self.rides = rides
-        self.study_area = study_area
-        self.protected_zones = protected_zones
-        
-        # Project to metric CRS for distance calculations
-        self.network_proj = network.to_crs("EPSG:32633")
-        self.study_area_proj = study_area.to_crs("EPSG:32633")
-        
-        if protected_zones is not None:
-            self.protected_zones_proj = protected_zones.to_crs("EPSG:32633")
-        else:
-            self.protected_zones_proj = None
-    
-    def find_candidate_locations(self, min_traffic=5):
+    @staticmethod
+    def find_candidate_locations(network, min_traffic=5):
         """
         Find candidate locations based on high-traffic trail clusters
         """
         print("\n1️⃣ Finding high-traffic trail clusters...")
         
+        # Project to metric CRS
+        network_proj = network.to_crs("EPSG:32633")
+        
         # Get high-traffic segments
-        high_traffic = self.network_proj[
-            self.network_proj['ride_count'] >= min_traffic
+        high_traffic = network_proj[
+            network_proj['ride_count'] >= min_traffic
         ].copy()
         
         print(f"   ✓ Found {len(high_traffic)} high-traffic segments (≥{min_traffic} rides)")
+        
+        if len(high_traffic) == 0:
+            print("   ❌ No high-traffic segments found")
+            return None
         
         # Extract centroids for clustering
         centroids = high_traffic.geometry.centroid
@@ -81,19 +76,23 @@ class SuitabilityAnalyzer:
         print(f"   ✓ Identified {len(candidates_gdf)} candidate locations")
         return candidates_gdf
     
-    def calculate_trail_access(self, candidates, radius_m=5000):
+    @staticmethod
+    def calculate_trail_access(candidates, network, radius_m=5000):
         """
         For each candidate, count trails within 5km radius
         """
         print("\n2️⃣ Calculating trail accessibility (5km radius)...")
+        
+        # Project to metric CRS
+        network_proj = network.to_crs("EPSG:32633")
         
         results = []
         for idx, candidate in candidates.iterrows():
             buffer = candidate.geometry.buffer(radius_m)
             
             # Find trails within buffer
-            nearby_trails = self.network_proj[
-                self.network_proj.geometry.intersects(buffer)
+            nearby_trails = network_proj[
+                network_proj.geometry.intersects(buffer)
             ]
             
             # Calculate metrics
@@ -106,6 +105,7 @@ class SuitabilityAnalyzer:
                 'trail_length_km': total_length_km,
                 'total_rides': total_traffic
             })
+            
         
         # Add to candidates
         for col in ['trail_count', 'trail_length_km', 'total_rides']:
@@ -114,49 +114,37 @@ class SuitabilityAnalyzer:
         print(f"   ✓ Trail accessibility calculated")
         return candidates
     
-    def check_environmental_constraints(self, candidates):
-        """
-        Check if candidates are in prohibited zones (NP A or B)
-        Simple binary: allowed or not allowed
-        """
-        print("\n3️⃣ Checking environmental constraints...")
-        
-        if self.protected_zones_proj is None:
+    @staticmethod
+    def check_environmental_constraints(candidates, protected_zones):
+        if protected_zones is None:
             print("   ⚠️ No protected zones data - all locations allowed")
             candidates['in_prohibited_zone'] = False
             candidates['zone_type'] = 'Unknown'
             return candidates
-        
-        results = []
-        for idx, candidate in candidates.iterrows():
-            in_prohibited = False
-            zone_type = 'None'
-            
-            # Check if point is inside any protected zone
-            for _, zone in self.protected_zones_proj.iterrows():
-                if zone.geometry.contains(candidate.geometry):
-                    zona = zone.get('ZONA', 'Unknown')
-                    zone_type = zona
-                    
-                    # Check if it's prohibited zone (A or B)
-                    if zona in ['A', 'B']:
-                        in_prohibited = True
-                        break
-            
-            results.append({
-                'in_prohibited_zone': in_prohibited,
-                'zone_type': zone_type
-            })
-        
-        candidates['in_prohibited_zone'] = [r['in_prohibited_zone'] for r in results]
-        candidates['zone_type'] = [r['zone_type'] for r in results]
-        
+
+        # Project both to same CRS
+        candidates_proj = candidates.to_crs("EPSG:32633")
+        zones_proj = protected_zones.to_crs("EPSG:32633")
+
+        # Spatial join: point inside polygon
+        joined = gpd.sjoin(
+            candidates_proj,
+            zones_proj[['ZONA', 'geometry']],
+            how='left',
+            predicate='within'
+        )
+
+        candidates['zone_type'] = joined['ZONA'].fillna('None')
+        candidates['in_prohibited_zone'] = candidates['zone_type'] == 'A'
+
         prohibited_count = candidates['in_prohibited_zone'].sum()
-        print(f"   ✓ {prohibited_count} candidates in prohibited zones (A/B)")
-        
+        print(f"   ✓ {prohibited_count} candidates in prohibited zones (A)")
+
         return candidates
+
     
-    def calculate_scores(self, candidates):
+    @staticmethod
+    def calculate_scores(candidates):
         """
         Simple scoring:
         - Trail frequency (40%): More trails = better
@@ -198,37 +186,39 @@ class SuitabilityAnalyzer:
         print(f"   ✓ Scores calculated")
         return df
     
-    def analyze(self):
+    @staticmethod
+    def analyze(network, rides, study_area, protected_zones=None):
         """
-        Run complete analysis
+        Run complete analysis - main entry point
         """
         print("\n" + "="*60)
         print("🚴 TRAIL CENTER SUITABILITY ANALYSIS")
         print("="*60)
         
         # Step 1: Find candidates
-        candidates = self.find_candidate_locations(min_traffic=5)
+        candidates = SuitabilityAnalyzer.find_candidate_locations(network, min_traffic=5)
         
-        if len(candidates) == 0:
+        if candidates is None or len(candidates) == 0:
             print("\n❌ No suitable locations found")
             return None
         
         # Step 2: Calculate trail access
-        candidates = self.calculate_trail_access(candidates, radius_m=5000)
+        candidates = SuitabilityAnalyzer.calculate_trail_access(candidates, network, radius_m=5000)
         
         # Step 3: Check environmental constraints
-        candidates = self.check_environmental_constraints(candidates)
+        candidates = SuitabilityAnalyzer.check_environmental_constraints(candidates, protected_zones)
         
         # Step 4: Calculate scores
-        results = self.calculate_scores(candidates)
+        results = SuitabilityAnalyzer.calculate_scores(candidates)
         
         # Convert back to original CRS
-        results = results.to_crs(self.network.crs)
+        results = results.to_crs(network.crs)
         
         print("\n" + "="*60)
         return results
     
-    def print_results(self, results, top_n=5):
+    @staticmethod
+    def print_results(results, top_n=5):
         """
         Print top candidates
         """
@@ -248,7 +238,8 @@ class SuitabilityAnalyzer:
         
         print("\n" + "="*60)
     
-    def save_results(self, results, output_path):
+    @staticmethod
+    def save_results(results, output_path):
         """
         Save to file
         """
@@ -266,9 +257,10 @@ class SuitabilityAnalyzer:
         print(f"\n💾 Results saved to: {output_path}")
 
 
+# Standalone execution
 def main():
     """
-    Run simplified analysis
+    Run analysis standalone
     """
     Config.ensure_directories()
     
@@ -276,7 +268,7 @@ def main():
     print("📂 Loading data...")
     study_area = gpd.read_file(Config.STUDY_AREA)
     network = gpd.read_file(Config.TRAIL_NETWORK)
-    rides = gpd.read_file(Config.STRAVA_RIDES)  # Still needed for reference
+    rides = gpd.read_file(Config.STRAVA_RIDES)
     
     # Load protected zones
     zones_path = Path('data/sumava_zones_2.geojson')
@@ -287,18 +279,17 @@ def main():
         protected_zones = gpd.read_file(zones_path)
         print(f"   ✓ Loaded {len(protected_zones)} zones")
     else:
-        print("⚠️ No protected zones file found - analysis will continue without constraints")
+        print("⚠️ No protected zones file found")
     
     # Run analysis
-    analyzer = SimpleSuitabilityAnalyzer(network, rides, study_area, protected_zones)
-    results = analyzer.analyze()
+    results = SuitabilityAnalyzer.analyze(network, rides, study_area, protected_zones)
     
     if results is not None:
-        analyzer.print_results(results, top_n=5)
+        SuitabilityAnalyzer.print_results(results, top_n=5)
         
         # Save
         output_path = Config.OUTPUT_DIR / 'candidate_locations.gpkg'
-        analyzer.save_results(results, output_path)
+        SuitabilityAnalyzer.save_results(results, output_path)
         
         return results
     
