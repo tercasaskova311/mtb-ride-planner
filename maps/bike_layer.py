@@ -47,27 +47,83 @@ class BikeLayers:
         print(f"Added {len(rides_subset)} rides")
 
     @staticmethod
-    def add_clickable_rides(m, rides):
-        # Make a layer for ride start points
-        layer = FeatureGroup(name="Ride Junctions / Points", show=True)
+    def add_clickable_rides(m, rides):    
+        # Group rides by route type
+        for route_type in rides['route_type'].unique():
+            type_rides = rides[rides['route_type'] == route_type]
+            
+            for idx, ride in type_rides.iterrows():
+
+                popup_html = f"""
+                <div style='font-family: Arial; min-width: 200px;'>
+                    <p style='margin: 3px 0; font-size: 13px;'>
+                        <b>Type:</b> {ride['route_type']}<br>
+                        <b>Distance:</b> {ride['distance_km']:.1f} km<br>
+                        <b>Activity ID:</b> {ride['activity_id']}
+                    </p>
+                </div>
+                """
+                
+                # Choose color based on route type
+                color_map = {
+                    'Ride': '#3388ff',
+                    'Hike': '#ff7800', 
+                    'Run': '#e74c3c',
+                    'VirtualRide': '#9b59b6'
+                }
+                color = color_map.get(route_type, '#95a5a6')
+                
+                # Add ride geometry - control=False prevents it from showing in layer control!
+                folium.GeoJson(
+                    ride.geometry,
+                    style_function=lambda x, c=color: {
+                        'color': c,
+                        'weight': 3,
+                        'opacity': 0.7
+                    },
+                    highlight_function=lambda x: {
+                        'weight': 5,
+                        'opacity': 1.0
+                    },
+                    popup=folium.Popup(popup_html, max_width=300),
+                    tooltip=f"({ride['distance_km']:.1f} km)",
+                    control=False  # THIS IS THE KEY - hides from layer control!
+                ).add_to(m)
         
-        # Here we use start points, but you could also use intersections
+        print(f"✓ Added {len(rides)} clickable rides to map (hidden from layer control)")
+
+    def add_ride_junctions(m, rides):
+        layer = folium.FeatureGroup(name="🚩 Ride Junctions / Points", show=True)
+        
+        # Group rides by start point
+        from collections import defaultdict
+        start_points = defaultdict(list)
+        
         for idx, row in rides.iterrows():
             if row['start_point'] is None:
                 continue
-            lat, lon = row['start_point'][1], row['start_point'][0]
+            point_key = (round(row['start_point'][0], 5), round(row['start_point'][1], 5))
+            start_points[point_key].append(row)
+        
+        # Add marker for each unique start point
+        for point, point_rides in start_points.items():
+            lon, lat = point
             
-            # Popup HTML: list all rides that start here (example: just one ride per point here)
-            html = f"<b>Rides from this point:</b><br>"
-            html += f"<a href='#' onclick='alert(\"Showing ride {row['ride_id']}\")'>Ride {row['ride_id']} ({row['distance_km']:.1f} km)</a><br>"
+            # Create popup listing all rides from this point
+            html = f"<div style='font-family: Arial;'><b>🚴 {len(point_rides)} Ride(s) from here:</b><br><br>"
+            for ride in point_rides:
+                html += f"  <i>{ride['route_type']}, {ride['distance_km']:.1f} km</i><br>"
+            html += "</div>"
             
             folium.Marker(
                 location=[lat, lon],
                 popup=folium.Popup(html, max_width=300),
-                icon=folium.Icon(color='green', icon='bicycle', prefix='fa')
+                icon=folium.Icon(color='green', icon='bicycle', prefix='fa'),
+                tooltip=f"{len(point_rides)} ride(s) start here"
             ).add_to(layer)
         
         layer.add_to(m)
+        print(f"✓ Added {len(start_points)} junction points")
 
     @staticmethod
     def add_rides_by_length(m, rides):
@@ -76,8 +132,8 @@ class BikeLayers:
         rides['length_category'] = pd.cut(
             rides['distance_km'],
             bins=[0, 25, 50, float('inf')],
-            labels=['Short ( to 25 km)', 'Medium (25-50km)', 
-                    'Long (50 + km)']
+            labels=['Short (to 25 km)', 'Medium (25-50km)', 
+                    'Long (50 +)']
         )
         
         colors_by_length = {

@@ -62,14 +62,8 @@ class BaseLayers:
     
     @staticmethod
     def add_trail_network_analysis(m, network):
-        """
-        Add the trail network as a SINGLE always-visible layer
-        This replaces the non-working toggle version
-        """
         thresholds = Config.TRAFFIC_THRESHOLDS
-        
-        print("Adding trail network segments...")
-        
+
         for idx, segment in network.iterrows():
             ride_count = segment['ride_count']
             rides_info = segment.get('rides', [])
@@ -107,7 +101,7 @@ class BaseLayers:
                             border-radius: 4px; border-left: 3px solid {color};">
                     <b>{i}. {ride_info.get('name', f'Ride {ride_info.get("activity_id", "?")}'[:30])}</b><br>
                     <span style="color: #7f8c8d;">
-                         {ride_info.get('distance_km', 0):.1f} km
+                        {ride_info.get('distance_km', 0):.1f} km
                     </span>
                 </div>
                 """
@@ -117,9 +111,10 @@ class BaseLayers:
             
             popup_html += "</div></div>"
             
-            # Add to map (no layer group - always visible)
+            # Add to map with name=None to prevent layer control entry
             folium.GeoJson(
                 segment.geometry,
+                name=None,  # ← THIS PREVENTS IT FROM SHOWING IN LAYER CONTROL!
                 style_function=lambda x, c=color, w=weight: {
                     'color': c,
                     'weight': w,
@@ -138,6 +133,8 @@ class BaseLayers:
                 print(f"   Added {idx + 1}/{len(network)} segments...")
 
         print(f"✓ Added {len(network)} interactive trail segments (always visible)")
+            
+           
     
     @staticmethod
     def add_instructions(m):

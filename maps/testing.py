@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import Config
 
 
-def print_summary(study_area, rides, network):
+def print_summary(study_area, rides, network, candidates_path=None):
     print("sumary")
     print(f"   Total Rides: {len(rides)}")
     print(f"   Total Distance: {rides['distance_km'].sum():.1f} km")
@@ -178,11 +178,10 @@ def main():
     add_candidate_locations(m, candidates_file, zones_path)
 
     BaseLayers.add_instructions(m) 
-    #BaseLayers.add_trail_network_analysis(m, network)
+    BaseLayers.add_trail_network_analysis(m, network) 
     
     BikeLayers.add_clickable_rides(m, rides)  # Trails clickable but hidden from control
-    BikeLayers.add_ride_junctions(m, rides)   # Junction points visible in control
-        
+    BikeLayers.add_ride_junctions(m, rides)   # Junction points visible in control        
     # Add layer control
     folium.LayerControl(position='topright', collapsed=False).add_to(m)
     
