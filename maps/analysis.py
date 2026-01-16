@@ -262,56 +262,71 @@ class SuitabilityAnalyzer:
         if protected_zones_path and Path(protected_zones_path).exists():
             zones = gpd.read_file(protected_zones_path)
             
-            folium.GeoJson(
-                zones,
-                name='🌲 Protected Zones (A)',
-                style_function=lambda x: {
-                    'fillColor': '#2e7d32' if x['properties'].get('ZONA') == 'A' else '#a5d6a7',
-                    'color': '#1b5e20', #dark green
-                    'weight': 1.2,
-                    'dashArray': '1,6',
-                    'fillOpacity': 0.4 if x['properties'].get('ZONA') == 'A' else 0.25
-                },
-            ).add_to(m)
+        def get_zone_style(zona):
+            zone_styles = {
+                # National Park zones (A-D) - decreasing importance
+                'A': {'fillColor': '#1b5e20', 'fillOpacity': 0.5},   # Dark green - most important
+                'B': {'fillColor': '#388e3c', 'fillOpacity': 0.35},  # Medium green
+                'C': {'fillColor': '#66bb6a', 'fillOpacity': 0.2},   # Light green
+                'D': {'fillColor': '#a5d6a7', 'fillOpacity': 0.1},   # Very light green - barely visible
+                
+                # CHKO zones (I-IV) - only I is important
+                'I': {'fillColor': '#2e7d32', 'fillOpacity': 0.3},   # Medium-dark green
+                'II': {'fillColor': '#81c784', 'fillOpacity': 0.12}, # Light green - subtle
+                'III': {'fillColor': '#a5d6a7', 'fillOpacity': 0.08}, # Very light - barely visible
+                'IV': {'fillColor': '#c8e6c9', 'fillOpacity': 0.05},  # Almost invisible
+            }
+            return zone_styles.get(zona, {'fillColor': '#e8f5e9', 'fillOpacity': 0.05})
+
+        folium.GeoJson(
+            zones,
+            name='Protected zones in NP/CHKO',
+            style_function=lambda x: {
+                **get_zone_style(x['properties'].get('ZONA')),
+                'color': '#1b5e20',  # dark green border
+                'weight': 1.2,
+                'dashArray': '1,6'
+            }
+        ).add_to(m)
 
         legend_html = """
-            <div style="
-                position: fixed;
-                bottom: 30px;
-                right: 30px;
-                z-index: 9999;
-                background-color: white;
-                padding: 10px 12px;
-                border-radius: 6px;
-                box-shadow: 0 0 8px rgba(0,0,0,0.2);
-                font-size: 13px;
-            ">
-            <b>Protected Zones</b><br>
-            <hr style="margin: 6px 0;">
-            <span style="display:inline-block;
-                        width:12px;
-                        height:12px;
-                        background:#2e7d32;
-                        opacity:0.45;
-                        margin-right:6px;"></span>
-            Zone A – Strict protection<br>
-
-            <span style="display:inline-block;
-                        width:12px;
-                        height:12px;
-                        background:#a5d6a7;
-                        opacity:0.4;
-                        margin-right:6px;"></span>
-            Other protected zones
-            </div>
-            """
+        <div style="
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 9999;
+            background-color: white;
+            padding: 10px 12px;
+            border-radius: 6px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.2);
+            font-size: 12px;
+        ">
+        <b>Protected Zones</b><br>
+        <hr style="margin: 6px 0;">
+        <div style="margin-bottom: 8px;"><i>National Park:</i></div>
+        <span style="display:inline-block; width:12px; height:12px; background:#1b5e20; opacity:0.5; margin-right:6px;"></span>
+        Zone A – Strict protection<br>
+        <span style="display:inline-block; width:12px; height:12px; background:#388e3c; opacity:0.35; margin-right:6px;"></span>
+        Zone B – High protection<br>
+        <span style="display:inline-block; width:12px; height:12px; background:#66bb6a; opacity:0.2; margin-right:6px;"></span>
+        Zone C – Moderate protection<br>
+        <span style="display:inline-block; width:12px; height:12px; background:#a5d6a7; opacity:0.1; margin-right:6px;"></span>
+        Zone D – Low protection<br>
+        <hr style="margin: 6px 0;">
+        <div style="margin-bottom: 4px; margin-top: 8px;"><i>CHKO (Landscape Area):</i></div>
+        <span style="display:inline-block; width:12px; height:12px; background:#2e7d32; opacity:0.3; margin-right:6px;"></span>
+        Zone I – Protected<br>
+        <span style="display:inline-block; width:12px; height:12px; background:#81c784; opacity:0.12; margin-right:6px;"></span>
+        Zones II-IV – Minimal protection
+        </div>
+        """
 
         m.get_root().html.add_child(folium.Element(legend_html))
             
         candidates = gpd.read_file(candidates_path)
         
         # Create layer
-        layer = folium.FeatureGroup(name='🎯 Candidate Trail Centers', show=True)
+        layer = folium.FeatureGroup(name='Best choices for trail centers', show=True)
         
         # Color scale for ranks
         rank_colors = {
@@ -363,17 +378,6 @@ class SuitabilityAnalyzer:
                 weight=3,
                 popup=folium.Popup(popup_html, max_width=300),
                 tooltip=f"Rank #{rank} - Score: {candidate['suitability_score']:.0f}/100"
-            ).add_to(layer)
-            
-            # Add 5km radius circle
-            folium.Circle(
-                location=[candidate.geometry.y, candidate.geometry.x],
-                radius=5000,
-                color=color,
-                fill=False,
-                weight=2,
-                opacity=0.3,
-                dashArray='5, 5'
             ).add_to(layer)
         
         layer.add_to(m)

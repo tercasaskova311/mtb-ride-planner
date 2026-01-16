@@ -39,15 +39,6 @@ class BaseLayers:
             overlay=False,
             control=True
         ).add_to(m)
-
-        folium.TileLayer(
-            tiles='https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
-            attr='CyclOSM | Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            name='Cycling & Trail Map',
-            overlay=True,
-            control=True,
-            opacity=0.6
-        ).add_to(m)
         
         MiniMap(toggle_display=True).add_to(m)
         Fullscreen().add_to(m)
@@ -66,10 +57,9 @@ class BaseLayers:
                 'weight': 3,
                 'dashArray': '10, 5'
             },
-            tooltip='Study Area Boundary'
+            control=False
         ).add_to(m)
     
-        
     @staticmethod
     def add_description(m, network, candidates):
         
@@ -95,62 +85,55 @@ class BaseLayers:
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             z-index: 1000;
-            max-width: 340px;
+            max-width: 360px;
             font-family: Arial;
         ">
-            <h4 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 15px;">
-                🚴 MTB Trail Usage Analysis
+            <h4 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 16px;">
+                Mountain Bike Trail Network Analysis
             </h4>
             <p style="margin: 0 0 12px 0; font-size: 11px; color: #7f8c8d; line-height: 1.4;">
-                Geospatial analysis of trail patterns in Šumava National Park 
-                to identify optimal trail center placement and overall riding behavior of cyclists.
+                Geospatial analysis of mountain biking patterns in Šumava National Park and Protected Landscape Area 
+                to identify optimal trail center placement based on usage intensity and spatial accessibility.
             </p>
-            
             <hr style="margin: 10px 0; border: none; border-top: 1px solid #ecf0f1;">
-            
             <div style="font-size: 13px; line-height: 1.5;">
                 <p style="margin: 8px 0;">
-                    <b style="color: #27ae60;">🏆 Recommended Location</b><br>
+                    <b style="color: #27ae60;"> Optimal Trail centre location:</b><br>
                     <span style="font-size: 12px;">
                     📍 {top_candidate.geometry.y:.4f}°N, {top_candidate.geometry.x:.4f}°E<br>
-                    📊 Suitability Score: <b>{top_candidate['suitability_score']:.0f}/100</b><br>
-                    🚵 Access to {int(top_candidate['trail_count'])} trails 
-                    ({top_candidate['trail_length_km']:.1f} km within 5km radius)
+                    - Suitability Index: <b>{top_candidate['suitability_score']:.0f}/100</b><br>
+                    - Trail Accessibility: {int(top_candidate['trail_count'])} segments 
+                    ({top_candidate['trail_length_km']:.1f} km within 5 km buffer)
                     </span>
                 </p>
-                
                 <p style="margin: 8px 0;">
-                    <b style="color: #e74c3c;">Most favourite Trail </b><br>
+                    <b style="color: #e74c3c;"> Most popular trail:</b><br>
                     <span style="font-size: 12px;">
-                    {hottest_segment['ride_count']} recorded rides • {hottest_segment['distance_km']:.1f} km length
+                    {hottest_segment['ride_count']} recorded activities • {hottest_segment['distance_km']:.1f} km length
                     </span>
                 </p>
-                
                 <p style="margin: 8px 0;">
-                    <b style="color: #3498db;">📈 Network Statistics</b><br>
+                    <b style="color: #3498db;">📊 Network Statistics:</b><br>
                     <span style="font-size: 12px;">
-                    • {len(network)} trail segments ({total_trail_km:.1f} km total)<br>
-                    • {high_traffic_segments} high-traffic segments (≥{Config.TRAFFIC_THRESHOLDS['medium']} rides)<br>
-                    • Avg: {avg_segment_traffic:.1f} rides per segment
+                    • Total segments: {len(network)} ({total_trail_km:.1f} km cumulative length)<br>
+                    • High-traffic trails: {high_traffic_segments} segments (≥{Config.TRAFFIC_THRESHOLDS['medium']} rides)<br>
+                    • Mean usage: {avg_segment_traffic:.1f} rides per segment
                     </span>
                 </p>
-                
                 <p style="margin: 8px 0;">
                     <b style="color: {'#27ae60' if not top_candidate['in_prohibited_zone'] else '#e74c3c'};">
-                        Analysis align with Natiional Park restrictions:
+                        Protected Area Compliance:
                     </b><br>
                     <span style="font-size: 12px;">
-                    {'Zone outside of A  = more free access, although still in protected areas. <br>Suitable for development' 
-                    if not top_candidate['in_prohibited_zone'] 
-                    else '❌ Zone A  = Strictly protected, access not allowed <br>Alternative sites recommended'}
+{'✅ Located outside Zone A (strictly protected core)<br>Zones B-D/I-IV: Development permitted with restrictions' 
+if not top_candidate['in_prohibited_zone'] 
+else '⚠️ Located within Zone A (strictly protected core)<br>Development prohibited - alternative sites required'}
                     </span>
                 </p>
             </div>
-            
             <hr style="margin: 10px 0; border: none; border-top: 1px solid #ecf0f1;">
-            
             <p style="margin: 5px 0; font-size: 10px; color: #95a5a6; text-align: center;">
-                Based on DBSCAN clustering & spatial overlay analysis
+                Methodology: DBSCAN spatial clustering with protected area overlay analysis
             </p>
         </div>
         """

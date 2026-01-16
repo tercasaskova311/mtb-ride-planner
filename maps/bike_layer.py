@@ -6,9 +6,26 @@ from shapely.geometry import Point
 from config import Config
 
 class BikeLayers:
-
+    @staticmethod
+    def add_trail_net(m, rides):
+        """Add base trail map with simple light brown lines for all paths"""
+        for idx, ride in rides.iterrows():
+            color = '#D2B48C'  # light brown color for all trails
+            
+            folium.GeoJson(
+                ride.geometry,
+                style_function=lambda x, c=color: {
+                    'color': c,
+                    'weight': 1,
+                    'opacity': 1
+                },
+                highlight_function=lambda x: {
+                    'weight': 3,
+                    'opacity': 1
+                },
+                control=False  # Hide from layer control - always visible as base layer
+            ).add_to(m)
         
-
     @staticmethod
     def add_trail_network(m, network):        
         def get_traffic_color(ride_count):

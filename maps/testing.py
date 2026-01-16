@@ -106,7 +106,7 @@ def main():
     candidates = gpd.read_file(candidates_path)
     BaseLayers.add_description(m, network, candidates) 
     BikeLayers.add_trail_network(m, network)
-
+    BikeLayers.add_trail_net(m, rides)
     
     # Add layer control
     folium.LayerControl(position='topright', collapsed=False).add_to(m)
