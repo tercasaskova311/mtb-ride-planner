@@ -1,22 +1,20 @@
-#Create unified trail network from overlapping rides
-#originally input are strava rides - therefore they overlaps a lot
-
 import geopandas as gpd
 from shapely.geometry import LineString, MultiLineString
 from shapely.ops import unary_union, linemerge
 from pathlib import Path
 
 #built a trail network from overlappnig GPS data - to create segments
+#originally input are strava rides - therefore they overlaps a lot
 
 class NetworkBuilder:
     @staticmethod
-    def create_network(rides, tolerance=5):        
+    def create_network(rides, tolerance=5):  #tolerance =>       
 
         rides_proj = rides.to_crs('EPSG:32633')
         rides_proj['geometry'] = rides_proj.geometry.simplify(tolerance=tolerance, preserve_topology=True) 
 
-        all_geoms = rides_proj.geometry.tolist()
-        merged = unary_union(all_geoms)
+        all_geoms = rides_proj.geometry.tolist() 
+        merged = unary_union(all_geoms) #put together overlapping lines
         
         # Try to merge connected line segments
         try:
@@ -25,7 +23,7 @@ class NetworkBuilder:
         except:
             print("Could not merge all segments")
         
-        # Convert to list of segments
+        # Convert to list of segments 
         if isinstance(merged, LineString):
             segments = [merged]
         elif isinstance(merged, MultiLineString):
@@ -33,7 +31,6 @@ class NetworkBuilder:
         else:
             segments = []
         
-        # Create GeoDataFrame
         network_proj = gpd.GeoDataFrame(
             {
                 'segment_id': range(len(segments)),
@@ -47,12 +44,11 @@ class NetworkBuilder:
         network_proj['distance_km'] = network_proj["length_m"] / 1000
         network = network_proj.to_crs(rides.crs)
 
-        print(f"Created {len(network)} segments")
         return network
     
     @staticmethod
-    def map_rides_to_segments(network, rides, buffer_distance=50):
-    #How far a ride can deviate from a segment and still count
+    def map_rides_to_segments(network, rides, buffer_distance=200):
+    #How far a ride can deviate from a segment and still count - buffer set to 200
 
         # Project for accurate buffering
         network_proj = network.to_crs('EPSG:32633')
@@ -90,9 +86,7 @@ class NetworkBuilder:
 
         network['rides'] = segment_rides
         network['ride_count'] = [len(r) for r in segment_rides]
-        
-        
-        print(f"Mapped rides to {len(network)} segments")        
+                
         return network
     
     @staticmethod
@@ -104,4 +98,3 @@ class NetworkBuilder:
         network_save = network.drop(columns=['rides'], errors='ignore')
         network_save.to_file(output_path, driver='GPKG')
         
-        print(f"Saved network to: {output_path}")

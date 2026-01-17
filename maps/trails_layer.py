@@ -5,12 +5,14 @@ import pandas as pd
 from shapely.geometry import Point
 from config import Config
 
-class BikeLayers:
+#adding trail info to the map: 1. base trail map, 2. frequency of usage, 3. trails by lenght
+
+class TrailsLayers:
     @staticmethod
-    def add_trail_net(m, rides):
-        """Add base trail map with simple light brown lines for all paths"""
+    def add_trail_net(m, rides): #base trail map - made out of uploaded GPS data
+
         for idx, ride in rides.iterrows():
-            color = '#D2B48C'  # light brown color for all trails
+            color = '#D2B48C'  #light brown
             
             folium.GeoJson(
                 ride.geometry,
@@ -23,11 +25,12 @@ class BikeLayers:
                     'weight': 3,
                     'opacity': 1
                 },
-                control=False  # Hide from layer control - always visible as base layer
+                control=False  #always visible as base layer
             ).add_to(m)
         
     @staticmethod
-    def add_trail_network(m, network):        
+    def add_trail_network(m, network):
+        #differe trails by the frequency of usage  (low, medium, high)       
         def get_traffic_color(ride_count):
             if ride_count >= Config.TRAFFIC_THRESHOLDS['medium']:
                 return Config.COLORS['high_traffic']
@@ -38,9 +41,9 @@ class BikeLayers:
         
         layer = folium.FeatureGroup(name='Popularity of trails', show=True)
         
-        for idx, segment in network.iterrows():  # ✅ iterate over network, not ride
+        for idx, segment in network.iterrows():  #iterate over network - not ride!
             ride_count = segment['ride_count']
-            color = get_traffic_color(ride_count)  # ✅ color based on traffic
+            color = get_traffic_color(ride_count)  
             
             # Build list of rides for this segment
             rides_info = segment.get('rides', [])
@@ -52,6 +55,7 @@ class BikeLayers:
             if len(rides_info) > Config.MAX_RIDES_IN_POPUP:
                 rides_list_html += f"<br>...and {len(rides_info) - Config.MAX_RIDES_IN_POPUP} more"
             
+            #pop up for segments - show a list of rides which pass thought that given point in the map
             popup_html = f"""
             <div style='font-family: Arial; min-width: 250px;'>
                 <h4 style='margin: 0 0 10px 0; color: {color};'>
@@ -70,7 +74,7 @@ class BikeLayers:
             """
             
             folium.GeoJson(
-                segment.geometry,  # ✅ use segment, not ride
+                segment.geometry,  
                 style_function=lambda x, c=color: {
                     'color': c,
                     'weight': 4,
@@ -82,16 +86,14 @@ class BikeLayers:
                 },
                 popup=folium.Popup(popup_html, max_width=350),
                 tooltip=f"{ride_count} rides • {segment['distance_km']:.1f}km"
-            ).add_to(layer)  # ✅ add to layer, not directly to map
+            ).add_to(layer)  
         
-        layer.add_to(m)  # ✅ add layer to map ONCE at the end
-        print(f"✓ Added {len(network)} trail segments colored by popularity")
+        layer.add_to(m)  
     
-
     @staticmethod
     def add_rides_by_length(m, rides):
 
-        # length cat - important for later...
+        # split rides by km(short, medium, long)
         rides['length_category'] = pd.cut(
             rides['distance_km'],
             bins=[0, 25, 50, float('inf')],
@@ -129,6 +131,4 @@ class BikeLayers:
             
         layer.add_to(m)
         
-        print("Added length-based layers")  
-    
 

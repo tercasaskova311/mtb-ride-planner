@@ -1,9 +1,9 @@
 from loader import DataLoader
 from network_layer import NetworkBuilder
 from base_map import BaseLayers
-from bike_layer import BikeLayers
+from trails_layer import TrailsLayers
 from heatmap import HeatMapLayer
-from analysis import SuitabilityAnalyzer
+from location_analysis import LocationAnalyzer
 import sys
 from pathlib import Path
 import folium
@@ -78,10 +78,10 @@ def main():
     
     # Print and save results
     if results is not None:
-        SuitabilityAnalyzer.print_results(results, top_n=5)
+        LocationAnalyzer.print_results(results, top_n=5)
         
         candidates_file = 'maps/candidate_locations.gpkg'
-        SuitabilityAnalyzer.save_results(results, candidates_file)
+        LocationAnalyzer.save_results(results, candidates_file)
     
     # Calculate map center
     bounds = study_area.total_bounds
@@ -93,20 +93,20 @@ def main():
     # Add layers
     BaseLayers.add_study_area(m, study_area) 
 
-    BikeLayers.add_rides_by_length(m, rides)
+    TrailsLayers.add_rides_by_length(m, rides)
 
     HeatMapLayer.add_route_clusters(m, rides, Config.CLUSTER_DISTANCE)
     HeatMapLayer.add_heatmap(m, rides)
     
     candidates_path = Config.OUTPUT_DIR / 'candidate_locations.gpkg'
     protected_zones_file = Path('data/sumava_zones_2.geojson')
-    SuitabilityAnalyzer.add_candidate_locations(m, candidates_path, protected_zones_file)
+    LocationAnalyzer.add_candidate_locations(m, candidates_path, protected_zones_file)
 
 
     candidates = gpd.read_file(candidates_path)
     BaseLayers.add_description(m, network, candidates) 
-    BikeLayers.add_trail_network(m, network)
-    BikeLayers.add_trail_net(m, rides)
+    TrailsLayers.add_trail_network(m, network)
+    TrailsLayers.add_trail_net(m, rides)
     
     # Add layer control
     folium.LayerControl(position='topright', collapsed=False).add_to(m)

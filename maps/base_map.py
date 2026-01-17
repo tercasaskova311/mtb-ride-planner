@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import Config
 
+#base layer for interactive map: get the map layers, AIO, legende
 class BaseLayers:
     @staticmethod
     def create_base_map(center, zoom=11):
@@ -64,7 +65,7 @@ class BaseLayers:
     def add_description(m, network, candidates):
         
         if candidates is None or len(candidates) == 0:
-            print("⚠️ No candidates provided, skipping description panel")
+            print(" No candidates provided, skipping description panel")
             return
         
         top_candidate = candidates.iloc[0]
@@ -92,7 +93,7 @@ class BaseLayers:
                 Mountain Bike Trail Network Analysis
             </h4>
             <p style="margin: 0 0 12px 0; font-size: 11px; color: #7f8c8d; line-height: 1.4;">
-                Geospatial analysis of mountain biking patterns in Šumava National Park and Protected Landscape Area 
+                Geospatial analysis of mountain biking in Šumava National Park and Protected Landscape Area 
                 to identify optimal trail center placement based on usage intensity and spatial accessibility.
             </p>
             <hr style="margin: 10px 0; border: none; border-top: 1px solid #ecf0f1;">
@@ -113,7 +114,7 @@ class BaseLayers:
                     </span>
                 </p>
                 <p style="margin: 8px 0;">
-                    <b style="color: #3498db;">📊 Network Statistics:</b><br>
+                    <b style="color: #3498db;"> Network Statistics:</b><br>
                     <span style="font-size: 12px;">
                     • Total segments: {len(network)} ({total_trail_km:.1f} km cumulative length)<br>
                     • High-traffic trails: {high_traffic_segments} segments (≥{Config.TRAFFIC_THRESHOLDS['medium']} rides)<br>
@@ -139,7 +140,6 @@ else '⚠️ Located within Zone A (strictly protected core)<br>Development proh
         """
         
         m.get_root().html.add_child(folium.Element(summary_html))
-        print("✓ Added geospatial analysis summary panel")
 
     def save_map(m, output_path):
         output_path = Path(output_path)

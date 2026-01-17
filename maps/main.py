@@ -1,9 +1,9 @@
 from loader import DataLoader
 from network_layer import NetworkBuilder
 from base_map import BaseLayers
-from bike_layer import BikeLayers
+from trails_layer import TrailsLayers
 from heatmap import HeatMapLayer
-from analysis import SuitabilityAnalyzer
+from location_analysis import LocationAnalyzer
 import sys
 from pathlib import Path
 import folium
@@ -13,75 +13,66 @@ from config import Config
 
 
 def stats(study_area, rides, network):
-    print("sumary:")
-    print(f"   Total Rides: {len(rides)}")
-    print(f"   Total Distance: {rides['distance_km'].sum():.1f} km")
-    print(f"   Average Ride: {rides['distance_km'].mean():.1f} km")
-    print(f"   Longest Ride: {rides['distance_km'].max():.1f} km")
+    print("\n=== SUMMARY ===")
+    print(f"Total Rides: {len(rides)}")
+    print(f"Total Distance: {rides['distance_km'].sum():.1f} km")
+    print(f"Average Ride: {rides['distance_km'].mean():.1f} km")
+    print(f"Longest Ride: {rides['distance_km'].max():.1f} km")
     
-    print(f"\n  Network:")
-    print(f"   Segments: {len(network)}")
-    print(f"   Total Length: {network['distance_km'].sum():.1f} km")
-    print(f"   Most Popular: {network['ride_count'].max()} rides on one segment")
+    print(f"\nNetwork:")
+    print(f"  Segments: {len(network)}")
+    print(f"  Total Length: {network['distance_km'].sum():.1f} km")
+    print(f"  Most Popular: {network['ride_count'].max()} rides on one segment")
     
-    print(f"\n Route Types:")
+    print(f"\nRoute Types:")
     for route_type, count in rides['route_type'].value_counts().items():
-        print(f"   {route_type}: {count}")
+        print(f"  {route_type}: {count}")
     
     candidates_path = Config.OUTPUT_DIR / 'candidate_locations.gpkg'
-
-    if candidates_path and Path(candidates_path).exists():
+    if candidates_path.exists():
         candidates = gpd.read_file(candidates_path)
-        print(f"\n Trail Center Candidates:")
-        print(f"   • {len(candidates)} suitable locations identified")
+        print(f"\nTrail Center Candidates: {len(candidates)} locations")
         best = candidates.iloc[0]
-        print(f"   • Best location: {best.geometry.y:.4f}°N, {best.geometry.x:.4f}°E")
-        print(f"   • Suitability Score: {best['suitability_score']:.1f}/100")
+        print(f"  Best: {best.geometry.y:.4f}°N, {best.geometry.x:.4f}°E")
+        print(f"  Score: {best['suitability_score']:.1f}/100")
     
-    print(f"\n Output saved to: {Config.OUTPUT_MAP}")
+    print(f"\nOutput: {Config.OUTPUT_MAP}")
 
 
 def main():    
     Config.ensure_directories()
     
-    study_area, rides = DataLoader.load_data(
-        Config.STUDY_AREA,
-        Config.STRAVA_RIDES
-    )
-     # === STEP 2: CLEANING ===
+    # === LOAD BASE DATA ===
+    study_area, rides = DataLoader.load_data(Config.STUDY_AREA, Config.STRAVA_RIDES)
+    
+    # === CLEAN & ENRICH RIDES ===
     rides = DataLoader.clean_ride_names(rides)
     rides = DataLoader.calculate_km(rides)
-
-    # === STEP 3: BUILDING NETWORK ===
-    network = NetworkBuilder.create_network(
-        rides,
-        tolerance=Config.SNAP_TOLERANCE
-    )
-
-    network = NetworkBuilder.map_rides_to_segments(
-        network,
-        rides,
-        buffer_distance=Config.INTERSECTION_BUFFER
-    )
-
-    NetworkBuilder.save_network(network, Config.TRAIL_NETWORK)
-
-    protected_zones_file = Path('data/sumava_zones_2.geojson')
-    protected_zones = gpd.read_file(protected_zones_file)
-
-    results = SuitabilityAnalyzer.analyze(
-        network=network,
-        rides=rides,
-        study_area=study_area,
-        protected_zones=protected_zones
-    )
     
-    # Print and save results
+    # === BUILD OR LOAD NETWORK ===
+    if Config.TRAIL_NETWORK.exists():
+        print(f"\n✓ Loading existing network from {Config.TRAIL_NETWORK}")
+        network = gpd.read_file(Config.TRAIL_NETWORK)
+    else:
+        print("\n⚙️ Building trail network (this may take a few minutes)...")
+        network = NetworkBuilder.create_network(rides, tolerance=Config.SNAP_TOLERANCE)
+        network = NetworkBuilder.map_rides_to_segments(network, rides, buffer_distance=Config.INTERSECTION_BUFFER)
+        NetworkBuilder.save_network(network, Config.TRAIL_NETWORK)
+    
+    # === SUITABILITY ANALYSIS ===
+    protected_zones_file = Path('data/sumava_zones_2.geojson')
+    protected_zones = gpd.read_file(protected_zones_file) if protected_zones_file.exists() else None
+    
+    # === SUITABILITY ANALYSIS (ALWAYS RUN FRESH) ===
+    print("\n⚙️ Running suitability analysis...")
+    results = LocationAnalyzer.analyze(network, rides, study_area, protected_zones)
+    
     if results is not None:
-        SuitabilityAnalyzer.print_results(results, top_n=5)
-        
-        candidates_file = 'maps/candidate_locations.gpkg'
-        SuitabilityAnalyzer.save_results(results, candidates_file)
+        candidates_file = Config.OUTPUT_DIR / 'candidate_locations.gpkg'
+        LocationAnalyzer.save_results(results, candidates_file)
+    
+    # === CREATE INTERACTIVE MAP ===
+    print("\n🗺️ Creating interactive map...")
     
     # Calculate map center
     bounds = study_area.total_bounds
@@ -91,25 +82,44 @@ def main():
     m = BaseLayers.create_base_map(center, Config.DEFAULT_ZOOM)
     
     # Add layers
-    BaseLayers.add_study_area(m, study_area)   
-    BikeLayers.add_rides_by_length(m, rides)
+    BaseLayers.add_study_area(m, study_area)
+    TrailsLayers.add_trail_net(m, rides)
+    TrailsLayers.add_trail_network(m, network)
+    TrailsLayers.add_rides_by_length(m, rides)
+    
+    HeatMapLayer.add_route_clusters(m, rides, Config.CLUSTER_DISTANCE)
+    HeatMapLayer.add_heatmap(m, rides)
+    
 
+    if candidates_file.exists() and protected_zones_file.exists():
+        candidates = gpd.read_file(candidates_file)
+        BaseLayers.add_description(m, network, candidates)
+
+    # Add layer control
+    folium.LayerControl(position='topright', collapsed=False).add_to(m)
+    
+    # Save map
+    BaseLayers.save_map(m, Config.OUTPUT_MAP)
+    
+    # === PRINT SUMMARY ===
+    stats(study_area, rides, network)
+
+
+        TrailsLayers.add_rides_by_length(m, rides)
 
     HeatMapLayer.add_route_clusters(m, rides, Config.CLUSTER_DISTANCE)
     HeatMapLayer.add_heatmap(m, rides)
     
     candidates_path = Config.OUTPUT_DIR / 'candidate_locations.gpkg'
     protected_zones_file = Path('data/sumava_zones_2.geojson')
-    SuitabilityAnalyzer.add_candidate_locations(m, candidates_path, protected_zones_file)
-    candidates_path = Config.OUTPUT_DIR / 'candidate_locations.gpkg'
+    LocationAnalyzer.add_candidate_locations(m, candidates_path, protected_zones_file)
 
 
     candidates = gpd.read_file(candidates_path)
     BaseLayers.add_description(m, network, candidates) 
-    BikeLayers.add_trail_network(m, network)
-    BikeLayers.add_trail_net(m, rides)
-
-        
+    TrailsLayers.add_trail_network(m, network)
+    TrailsLayers.add_trail_net(m, rides)
+    
     # Add layer control
     folium.LayerControl(position='topright', collapsed=False).add_to(m)
     
@@ -121,5 +131,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import folium
     main()
